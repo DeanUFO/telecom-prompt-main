@@ -339,20 +339,33 @@ const App: React.FC = () => {
         ? 'https://telecom-agent.herokuapp.com' // 實際部署 URL
         : 'http://localhost:3001';
 
+      console.log('Calling aggregation API at:', serverUrl);
+
       const response = await fetch(`${serverUrl}/api/aggregate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: generatedContent }),
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to aggregate');
+        const errorText = await response.text();
+        console.error('Error response body:', errorText);
+        try {
+          const err = JSON.parse(errorText);
+          throw new Error(err.error || `Server error: ${response.status}`);
+        } catch (e) {
+          throw new Error(`Server error: ${response.status} - ${errorText}`);
+        }
       }
 
       const data = await response.json();
+      console.log('Response data keys:', Object.keys(data));
+      
       if (!data.pptx) {
-        throw new Error('No PPTX data returned');
+        throw new Error('No PPTX data returned from server');
       }
 
       // 轉換 base64 並下載
@@ -373,7 +386,8 @@ const App: React.FC = () => {
 
       setToastMessage("PPT 已生成並下載");
     } catch (e: any) {
-      console.error('Aggregate error:', e);
+      console.error('Full error object:', e);
+      console.error('Error message:', e.message);
       setError(e.message || "聚合失敗，請確保伺服器正在運行且 API Keys 已設定");
     } finally {
       setIsLoading(false);

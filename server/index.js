@@ -28,6 +28,11 @@ app.use((req, res, next) => {
 
 app.use(bodyParser.json({ limit: '10mb' }));
 
+// 健康檢查端點
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', port: process.env.PORT || 3001 });
+});
+
 // 聚合多個 AI 模型回應並生成 PPT
 app.post('/api/aggregate', async (req, res) => {
   const { prompt } = req.body;
