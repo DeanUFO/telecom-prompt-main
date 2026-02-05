@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
-    base: './', // 確保在 GitHub Pages 子路徑下能正確讀取資源
+    base: '/telecom-prompt-main/', // GitHub Pages 子路徑 (倉庫部署)
     define: {
       // 在編譯時期將 process.env.API_KEY 替換為實際的字串值
       'process.env.API_KEY': JSON.stringify(env.API_KEY || process.env.API_KEY || ''),
