@@ -12,8 +12,8 @@ export const generateTelecomPrompt = async (
   prompt: string;
   thinking?: string;
 }> => {
-  // 優先使用使用者輸入的 Key，如果沒有則嘗試讀取環境變數（相容舊設定）
-  const apiKey = customApiKey || process.env.API_KEY;
+  // 使用傳入的 API Key
+  const apiKey = customApiKey;
 
   // 檢查是否為空
   if (!apiKey || apiKey === '') {
