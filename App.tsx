@@ -324,6 +324,62 @@ const App: React.FC = () => {
     }
   };
 
+  // 聚合多個 AI 模型的回應並生成 PPT
+  const handleAggregateAndPPT = async () => {
+    if (!generatedContent.trim()) {
+      setToastMessage("請先生成提示詞");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const serverUrl = process.env.NODE_ENV === 'production' 
+        ? 'https://telecom-agent.herokuapp.com' // 實際部署 URL
+        : 'http://localhost:3001';
+
+      const response = await fetch(`${serverUrl}/api/aggregate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: generatedContent }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Failed to aggregate');
+      }
+
+      const data = await response.json();
+      if (!data.pptx) {
+        throw new Error('No PPTX data returned');
+      }
+
+      // 轉換 base64 並下載
+      const binaryString = atob(data.pptx);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = data.fileName || `ai-aggregation-${new Date().getTime()}.pptx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      setToastMessage("PPT 已生成並下載");
+    } catch (e: any) {
+      console.error('Aggregate error:', e);
+      setError(e.message || "聚合失敗，請確保伺服器正在運行且 API Keys 已設定");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleExampleClick = (example: string) => {
     setUserInput(example);
   };
@@ -621,6 +677,27 @@ const App: React.FC = () => {
               onRegenerate={handleGenerate}
               isGenerating={isLoading}
             />
+
+            {/* PPT Generation Button */}
+            {generatedContent && (
+              <button
+                onClick={handleAggregateAndPPT}
+                disabled={isLoading}
+                className="w-full py-3 px-6 bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold rounded-xl hover:from-violet-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 animate-fade-in shadow-lg hover:shadow-xl"
+              >
+                {isLoading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span>生成PPT中...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileText className="w-5 h-5" />
+                    <span>聚合多個AI協作生成PPT</span>
+                  </>
+                )}
+              </button>
+            )}
 
             {/* AI Tools Links - Compact Version */}
             {generatedContent && (
