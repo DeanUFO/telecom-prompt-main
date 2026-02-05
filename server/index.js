@@ -35,14 +35,22 @@ app.get('/health', (req, res) => {
 
 // 聚合多個 AI 模型回應並生成 PPT
 app.post('/api/aggregate', async (req, res) => {
+  console.log('📨 Received aggregation request');
   const { prompt } = req.body;
-  if (!prompt) return res.status(400).json({ error: 'prompt required' });
+  
+  if (!prompt) {
+    console.error('❌ No prompt provided');
+    return res.status(400).json({ error: 'prompt required' });
+  }
+
+  console.log('🔍 Prompt received:', prompt.slice(0, 50) + '...');
 
   try {
     const results = {};
 
     // OpenAI (ChatGPT)
     if (process.env.OPENAI_API_KEY) {
+      console.log('📞 Calling OpenAI API...');
       try {
         const r = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
@@ -54,13 +62,18 @@ app.post('/api/aggregate', async (req, res) => {
         });
         const j = await r.json();
         results.chatgpt = j.choices?.[0]?.message?.content || JSON.stringify(j, null, 2);
+        console.log('✅ OpenAI success');
       } catch (e) {
+        console.error('❌ OpenAI error:', e.message);
         results.chatgpt = `Error: ${e.message}`;
       }
+    } else {
+      console.log('⏭️  Skipping OpenAI (no API key)');
     }
 
     // Google Gemini
     if (process.env.GEMINI_API_KEY) {
+      console.log('📞 Calling Gemini API...');
       try {
         const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`, {
           method: 'POST',
@@ -69,13 +82,18 @@ app.post('/api/aggregate', async (req, res) => {
         });
         const j = await r.json();
         results.gemini = j.candidates?.[0]?.content?.parts?.[0]?.text || JSON.stringify(j, null, 2);
+        console.log('✅ Gemini success');
       } catch (e) {
+        console.error('❌ Gemini error:', e.message);
         results.gemini = `Error: ${e.message}`;
       }
+    } else {
+      console.log('⏭️  Skipping Gemini (no API key)');
     }
 
     // Claude (Anthropic)
     if (process.env.CLAUDE_API_KEY) {
+      console.log('📞 Calling Claude API...');
       try {
         const r = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
@@ -88,13 +106,18 @@ app.post('/api/aggregate', async (req, res) => {
         });
         const j = await r.json();
         results.claude = j.content?.[0]?.text || JSON.stringify(j, null, 2);
+        console.log('✅ Claude success');
       } catch (e) {
+        console.error('❌ Claude error:', e.message);
         results.claude = `Error: ${e.message}`;
       }
+    } else {
+      console.log('⏭️  Skipping Claude (no API key)');
     }
 
     // Perplexity
     if (process.env.PERPLEXITY_API_KEY) {
+      console.log('📞 Calling Perplexity API...');
       try {
         const r = await fetch('https://api.perplexity.ai/chat/completions', {
           method: 'POST',
@@ -106,15 +129,23 @@ app.post('/api/aggregate', async (req, res) => {
         });
         const j = await r.json();
         results.perplexity = j.choices?.[0]?.message?.content || JSON.stringify(j, null, 2);
+        console.log('✅ Perplexity success');
       } catch (e) {
+        console.error('❌ Perplexity error:', e.message);
         results.perplexity = `Error: ${e.message}`;
       }
+    } else {
+      console.log('⏭️  Skipping Perplexity (no API key)');
     }
 
     // 如果沒有任何結果，返回錯誤
     if (Object.keys(results).length === 0) {
-      return res.status(400).json({ error: 'No API keys configured' });
+      console.error('❌ No results - no API keys configured');
+      return res.status(400).json({ error: 'No API keys configured. Please set at least one of: OPENAI_API_KEY, GEMINI_API_KEY, CLAUDE_API_KEY, PERPLEXITY_API_KEY' });
     }
+
+    console.log('📊 Results collected:', Object.keys(results).join(', '));
+    console.log('🎨 Generating PPTX...');
 
     // 生成 PPT
     const pres = new PptxGenJS();
@@ -143,16 +174,38 @@ app.post('/api/aggregate', async (req, res) => {
     });
 
     // 生成 PPTX 為 Base64
+    console.log('💾 Writing PPTX to buffer...');
     const buffer = await pres.write({ outputType: 'arraybuffer' });
     const base64 = Buffer.from(buffer).toString('base64');
 
+    console.log('📦 PPTX generated successfully, sending response...');
     res.json({ ok: true, pptx: base64, fileName: `ai-aggregation-${new Date().getTime()}.pptx` });
+    console.log('✅ Response sent successfully');
 
   } catch (err) {
-    console.error('Aggregate error:', err);
-    res.status(500).json({ error: err.message || 'internal error' });
+    console.error('❌ Aggregate error:', err);
+    console.error('Error stack:', err.stack);
+    res.status(500).json({ error: err.message || 'internal error', stack: err.stack });
   }
 });
 
 const port = process.env.PORT || 3001;
-app.listen(port, () => console.log(`🚀 Server listening on http://localhost:${port}`));
+const server = app.listen(port, () => {
+  console.log(`🚀 Server listening on http://localhost:${port}`);
+  console.log('Environment variables:');
+  console.log(`  OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? '✅ set' : '❌ not set'}`);
+  console.log(`  GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? '✅ set' : '❌ not set'}`);
+  console.log(`  CLAUDE_API_KEY: ${process.env.CLAUDE_API_KEY ? '✅ set' : '❌ not set'}`);
+  console.log(`  PERPLEXITY_API_KEY: ${process.env.PERPLEXITY_API_KEY ? '✅ set' : '❌ not set'}`);
+});
+
+// 未處理的拒絕
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('⚠️ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// 未捕獲的異常
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ Uncaught Exception:', err);
+});
+
